@@ -1,46 +1,36 @@
 const BASE_URL = '';
 
-function getAccessToken(): string | null {
-  return localStorage.getItem('accessToken');
+function getTokens() {
+  return {
+    accessToken: localStorage.getItem('accessToken'),
+    refreshToken: localStorage.getItem('refreshToken'),
+  };
 }
 
-function getRefreshToken(): string | null {
-  return localStorage.getItem('refreshToken');
-}
-
-function setAccessToken(token: string): void {
+function setAccessToken(token: string) {
   localStorage.setItem('accessToken', token);
 }
 
-function clearTokens(): void {
+function clearTokens() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('user');
 }
 
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
+  const { refreshToken } = getTokens();
   if (!refreshToken) return null;
-
   try {
     const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
-
-    if (!res.ok) {
-      clearTokens();
-      window.location.href = '/';
-      return null;
-    }
-
+    if (!res.ok) return null;
     const data = await res.json();
     setAccessToken(data.accessToken);
     return data.accessToken;
   } catch {
-    clearTokens();
-    window.location.href = '/';
     return null;
   }
 }
@@ -51,14 +41,9 @@ async function request<T>(
   body?: unknown,
   retry = true
 ): Promise<T> {
-  const token = getAccessToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const { accessToken } = getTokens();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -70,13 +55,16 @@ async function request<T>(
     const newToken = await refreshAccessToken();
     if (newToken) {
       return request<T>(method, path, body, false);
+    } else {
+      clearTokens();
+      window.location.href = '/';
+      throw new Error('Session expired');
     }
-    throw new Error('Unauthorized');
   }
 
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(errData.error || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Request failed');
   }
 
   return res.json() as Promise<T>;
@@ -84,9 +72,7 @@ async function request<T>(
 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
-  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
+  post: <T>(path: string, body: unknown) => request<T>('POST', path, body),
+  put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
 };
-
-export { clearTokens, setAccessToken };

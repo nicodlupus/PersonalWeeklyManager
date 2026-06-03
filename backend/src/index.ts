@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 3001;
 
 runMigrations().then(() => {
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
-}).catch((err) => {
-  console.error('Failed to run migrations:', err);
+}).catch(err => {
+  console.error('Migration failed:', err);
   process.exit(1);
 });
