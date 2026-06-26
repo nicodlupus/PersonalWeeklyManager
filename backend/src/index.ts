@@ -18,11 +18,14 @@ app.use('/api/meals', mealsRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/goals', goalsRoutes);
 
-const PORT = process.env.PORT || 3001;
+export default app;
 
-runMigrations().then(() => {
-  app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
-}).catch(err => {
-  console.error('Migration failed:', err);
-  process.exit(1);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3001;
+  runMigrations().then(() => {
+    app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+  }).catch(err => {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  });
+}
